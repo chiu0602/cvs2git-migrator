@@ -1,6 +1,6 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
-LABEL maintainer="akshmakov@gmail.com"
+LABEL maintainer="chiu0602@gmail.com"
 
 # cvsclone compilation
 WORKDIR /tmp/
@@ -15,24 +15,24 @@ COPY external/cvsclone.l /tmp/
 # cvsclone is not maintained but fully functional in a
 # static environment like docker
 # we make use of it for convenience
-RUN apt-get update			      &&\
-    apt-get install -y				\
-       cvs                                   	\
-       cvs2svn					\
-       git 					\
-       ruby 					\
-       gcc 					\
-       flex				        \
-       cowsay    			      &&\
-    rm -rf /var/lib/apt/lists/* 	      &&\
-    flex cvsclone.l 			      &&\
-    gcc -Wall -O2 lex.yy.c -o cvsclone 	      &&\
-    mv cvsclone /usr/local/bin/cvsclone       &&\
-    apt-get purge -y gcc flex 		      &&\		 
-    apt-get autoremove -y 		      &&\
-    rm -rf /var/lib/apt/lists/* 	      &&\
-    rm /tmp/* 
-    
+RUN apt-get update &&\
+    apt-get install -y \
+       cvs \
+       cvs2svn \
+       git \
+       ruby \
+       gcc \
+       flex \
+       cowsay &&\
+    rm -rf /var/lib/apt/lists/* && \
+    flex cvsclone.l && \
+    gcc -Wall -O2 lex.yy.c -o cvsclone && \
+    mv cvsclone /usr/local/bin/cvsclone && \
+    apt-get purge -y gcc flex && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm /tmp/*
+
 #set up environment
 WORKDIR /workdir/
 
@@ -48,7 +48,7 @@ COPY external/git-move-refs.py /usr/local/bin/git-move-refs.py
 
 RUN mkdir -p /workdir/.cvs2git-migrator/cache &&\
     chmod +x /usr/local/bin/*
-    
+
 
 ENTRYPOINT [ "cvs2git-migrator" ]
 
