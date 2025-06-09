@@ -94,6 +94,7 @@
 #include <resolv.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include <errno.h>
 #include <ctype.h>
@@ -109,6 +110,7 @@
 %}
 %s HDR0 HDR1 DESC ACCL0 TAGL0 TAGL1 LCKL0 LCKL1 REV0 REV1 REV2 ATR0 ATR1
 %s REV3 REV4 RLST XREV FEND SRV0 SRVA SRVB SRV1 SRV2 SRV3 SRV4 SRV5 SRV6 PWF0
+%s REVSKIP
 %option noyywrap nounput
 num     [0-9.]+
 special [$,.:;@]
@@ -393,6 +395,11 @@ void begin(char *s, size_t l)
 		fi = fi2 + 1;
 	}
 	strcpy(getq(strlen(p + l0 + 1) + 1), p + l0 + 1);
+	if (!access(p + l0 + 1, R_OK)) {
+		char buffer[1024];
+		snprintf(buffer, sizeof(buffer), "%s.old", p + l0 + 1);
+		rename(p + l0 + 1, buffer);
+	}
 	if (!(rcsfiop = fopen(p + l0 + 1, "w")))
 		return;
 	s[l-1] = '\n';
@@ -439,12 +446,14 @@ void begin(char *s, size_t l)
 <ATR0>state:\ {id};\ \  rfile.revt->state = getstr(yyleng-10, yytext+7);
 <ATR0>state:\ {id};\n   BEGIN REV3; rfile.revt->state = getstr(yyleng-9, yytext+7);
 <ATR0>lines:\ \+[0-9]+\  BEGIN ATR1; rfile.revt->ladd = atoi(yytext+8);
-<ATR1>-[0-9]+\n         BEGIN REV3; rfile.revt->ldel = atoi(yytext+1);
+<ATR1>-[0-9]+;?\n         BEGIN REV3; rfile.revt->ldel = atoi(yytext+1);
 <ATR1>-[0-9]+;\ \       BEGIN ATR0; rfile.revt->ldel = atoi(yytext+1);
 <ATR0>kopt:\ [^;\n]+;\n BEGIN REV3; rfile.revt->kopt = getstr(yyleng-8, yytext+6);
 <ATR0>kopt:\ [^;\n]+;\ \  rfile.revt->kopt = getstr(yyleng-9, yytext+6);
-<ATR0>commitid:\ [0-9a-f]{16};\ \  rfile.revt->commitid = getstr(16, yytext+10);
-<ATR0>commitid:\ [0-9a-f]{16};\n BEGIN REV3; rfile.revt->commitid = getstr(16, yytext+10);
+<ATR0>commitid:\ [0-9a-zA-Z]{15};\ \  rfile.revt->commitid = getstr(15, yytext+10);
+<ATR0>commitid:\ [0-9a-zA-Z]{16};\ \  rfile.revt->commitid = getstr(16, yytext+10);
+<ATR0>commitid:\ [0-9a-zA-Z]{15};\n BEGIN REV3; rfile.revt->commitid = getstr(15, yytext+10);
+<ATR0>commitid:\ [0-9a-zA-Z]{16};\n BEGIN REV3; rfile.revt->commitid = getstr(16, yytext+10);
 <ATR0>mergepoint:\ {num};\n BEGIN REV3; /* getstr(yyleng-14, yytext+12); */
 <REV3>branches:/.*\n    BEGIN RLST;
 <REV3,REV4>={77}\n      BEGIN FEND; *yytext = '\0'; if (!rfile.revt->log) rfile.revt->log = yytext; if (rfile.revt) rfile.revt++;
@@ -452,6 +461,9 @@ void begin(char *s, size_t l)
 <REV3>.*\n              BEGIN REV4; assert(!rfile.revt->log); rfile.revt->log = yytext;
 <RLST>\ \ {num};        addrl(getstr(yyleng-3, yytext+2));
 <RLST>\n                BEGIN REV3;
+<REV4>The\ changelog\ prior\ to\ shifting.*\n BEGIN REVSKIP; *yytext = '\0'; if (!rfile.revt->log) rfile.revt->log = yytext;
+<REVSKIP>={77}\n      BEGIN REV0; *yytext = '\0'; if (!rfile.revt->log) rfile.revt->log = yytext;
+<REVSKIP>.*\n		*yytext = '\0'; /* do nothing */
 <REV4>.*\n              if (!rfile.revt->log) rfile.revt->log = yytext;
 <FEND><<EOF>>           return EOF;
 
@@ -578,7 +590,7 @@ char *strfix(char *s)
 		s[l-1] = '\0';
 	return s;	
 }
-FILE *srv;
+FILE *srv, *rlog_input;
 
 FILE *srvopen(void)
 {
@@ -645,7 +657,7 @@ struct rev *range(struct rev *begin)
 		bre++;
 	/*fprintf(stderr, "brb: %s, n: %u\n", brb, bre - brb);*/
 	while (begin < rfile.revt 
-	    && (bre - brb ? !strncmp(begin->num, brb, bre - brb)
+	    && ((bre - brb) ? !strncmp(begin->num, brb, bre - brb)
 	          && !strchr(begin->num + (bre - brb), '.')
 	        : strchr(begin->num, '.') == strrchr(begin->num, '.')))
 	          /* works fine even if no '.' present */
@@ -817,30 +829,32 @@ void puttree2(struct rev *z, struct rev *x)
 			for (z = y; z && !strcmp(z->state, "dead"); z = z->next)
 				continue;
 			if (z) {
-				sprintf(getq(10*4+5+2+3+2+strlen(z->num)
+				sprintf(getq(10*5+5+3+2+3+2+strlen(z->num)
 					+ (fi2 - strrchr(fi, '/')) - 1), 
+					"Argument -kb\n"
 					"Argument -r%s\n"
 					"Argument -aN\n"
 					"Argument --\n"
 					"Argument %.*s\n"
 					"diff", z->num, 
-					fi2 - strrchr(fi, '/') - 1,
+					(int)(fi2 - strrchr(fi, '/') - 1),
 					strrchr(fi, '/') + 1);
 				queue[queuel-1] = '\n';
 			} else
 				/* file was initially added on branch */
 				z = y;
 		} else if (strcmp(y->state, "dead") && z != y) {
-			sprintf(getq(10*5+5+2+2+2+2+strlen(z->num)
+			sprintf(getq(10*6+5+3+2+2+3+2+strlen(z->num)
 				+ strlen(y->num)
 				+ (fi2 - strrchr(fi, '/'))), 
+				"Argument -kb\n"
 				"Argument -r%s\n"
 				"Argument -r%s\n"
 				"Argument -aN\n"
 				"Argument --\n"
 				"Argument %.*s\n"
 				"diff", z->num, y->num, 
-				fi2 - strrchr(fi, '/') - 1,
+				(int)(fi2 - strrchr(fi, '/') - 1),
 				strrchr(fi, '/') + 1);
 			queue[queuel-1] = '\n';
 			z = y;
@@ -988,6 +1002,56 @@ static const struct clpair {
 	{ 0     , "# "  }       /* default for unknown suffix; must be last */
 };
 
+static int is_version_number(const char *line)
+{
+	if (*line < '0' || *line > '9')
+		return 0;
+	for (; *line; line++)
+		if (*line != '\n' && *line != '.' &&
+				(*line < '0' || *line > '9'))
+			return 0;
+	return 1;
+}
+
+static int is_done(const char *filename)
+{
+	char buffer[1024], line[1024];
+	FILE *orig;
+	int remaining = rfile.sel;
+
+	snprintf(buffer, sizeof(buffer), "%s.old", filename);
+	orig = fopen(buffer, "rb");
+	if (!orig)
+		return 0;
+
+	if (!fgets(line, sizeof(line), orig) || strncmp(line, "head\t", 5)) {
+		fclose(orig);
+		return 0;
+	}
+
+	while (!feof(orig) && fgets(line, sizeof(line), orig)) {
+		if (!strcmp(line, "desc\n"))
+			break;
+		if (is_version_number(line))
+			remaining--;
+	}
+
+	fclose(orig);
+	if (!remaining)
+		rename(buffer, filename);
+	else
+		unlink(buffer);
+	return !remaining;
+}
+
+static const char *current_file;
+static void unlink_current_file(int dummy)
+{
+	if (current_file)
+		unlink(current_file);
+	exit(1);
+}
+
 void gen()
 {
 	size_t l = strlen(cvsdir);
@@ -997,7 +1061,7 @@ void gen()
 	fi = strrchr(rfile.source, '/');
 	sprintf(getq(12 + (fi - rfile.source) + 1), 
 		"Directory .\n%.*s", 
-		fi - rfile.source, rfile.source);
+		(int)(fi - rfile.source), rfile.source);
 	queue[queuel-1] = '\n';
 	fi2 = strrchr(fi, ',');
 	fi = strrchr(fi, '.');
@@ -1011,6 +1075,9 @@ void gen()
 			? fi2 - fi : sizeof suffix - 1);
 	}
 	fi = rfile.source + l + 1;
+	if (is_done(fi))
+		return;
+	current_file = fi;
 	rcsfiop = fopen(fi, "w");
 
 	fprintf(rcsfiop, "head\t%s;\n", rfile.head.num ? rfile.head.num : "");
@@ -1059,13 +1126,20 @@ void gen()
 	queue = NULL;
 	fprintf(stderr, "\n");
 	fclose(rcsfiop);
+	current_file = NULL;
 }
 char *home;
 int main(int argc, char *argv[])
 {
 	unsigned long siz;
 	char *buf, *passfile, *fn0, *fn1, *fn2;
-	
+
+	if (argc == 5 || argc == 3)
+		if (!(rlog_input = fopen(argv[--argc], "rb"))) {
+			fprintf(stderr, "Invalid rlog file\n");
+			return EXIT_FAILURE;
+		}
+
 	if (argc == 4 && !strcmp(argv[1], "-d")) {
 		argc -= 2;
 		cvsroot = argv[2];
@@ -1098,6 +1172,7 @@ int main(int argc, char *argv[])
 		"pass: %.1s\n", passfile,
 		cvsroot, cvspass);
 
+	signal(SIGINT, unlink_current_file);
 	if (!(srv = srvopen())) {
 		fprintf(stderr, "server connection failed or bad cvsroot\n");
 #ifndef XTEST
@@ -1105,7 +1180,6 @@ int main(int argc, char *argv[])
 #endif
 	}
 #ifndef XTEST
-	yyrestart(srv);
 	fprintf(srv, "BEGIN AUTH REQUEST\n"
 		"%s\n"
 		"%s\n"
@@ -1114,8 +1188,14 @@ int main(int argc, char *argv[])
 	fprintf(srv, "Root %s\n", cvsdir);
 	/*fprintf(srv, "Argument micq/m4\n");*/
 	fprintf(srv, "Argument %s\n", argv[1]);
-	fprintf(srv, "rlog\n");
-	fflush(srv);
+	if (rlog_input)
+		yyrestart(rlog_input);
+	else
+	{
+		yyrestart(srv);
+		fprintf(srv, "rlog\n");
+		fflush(srv);
+	}
 	BEGIN SRV0;
 	yy_set_interactive(1);
 	fprintf(stderr, "exit: %d\n", yylex());
