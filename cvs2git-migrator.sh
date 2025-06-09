@@ -25,7 +25,7 @@
 ###
 ### Dependencies:
 ###   cvsclone
-###   cv2git (cvs2svn)
+###   cvs2git (cvs2svn)
 ###   git 
 ###
 ### This Script has some caching capability 
@@ -342,7 +342,7 @@ if [[ -e "$PROJECT_DIR/git-blob.dat" && -e "$PROJECT_DIR/git-dump.dat" ]]; then
 
     )
 else
-    error_exit "$LINENO: git fast-import cannot run cv2git failed to create correct blob and dump files in $PROJECT_DIR"
+    error_exit "$LINENO: git fast-import cannot run cvs2git failed to create correct blob and dump files in $PROJECT_DIR"
 fi
 
 if (which cowsay); then
