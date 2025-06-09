@@ -193,31 +193,31 @@ ctx.trunk_only = False
 # information loss.
 ctx.cvs_author_decoder = CVSTextDecoder(
     [
-        #'utf8',
-        #'latin1',
+        'utf8',
+        'big5',
+        'gb2312',
         'ascii',
-        ],
-    #fallback_encoding='ascii'
-    )
+    ],
+    fallback_encoding='utf8',
+)
 ctx.cvs_log_decoder = CVSTextDecoder(
     [
-        #'utf8',
-        #'latin1',
+        'utf8',
+        'big5',
+        'gb2312',
         'ascii',
-        ],
-    #fallback_encoding='ascii',
+    ],
+    fallback_encoding='utf8',
     eol_fix='\n',
-    )
+)
 # You might want to be especially strict when converting filenames to
 # Unicode (e.g., maybe not specify a fallback_encoding).
 ctx.cvs_filename_decoder = CVSTextDecoder(
     [
-        #'utf8',
-        #'latin1',
         'ascii',
-        ],
-    #fallback_encoding='ascii'
-    )
+    ],
+# fallback_encoding='ascii'
+)
 
 # Template for the commit message to be used for initial project
 # commits.
@@ -617,4 +617,3 @@ run_options.set_project(
     # repository path and use forward slashes:
     #exclude_paths=['file-to-exclude.txt,v', 'dir/to/exclude'],
     )
-
