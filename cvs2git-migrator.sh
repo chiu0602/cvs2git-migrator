@@ -4,10 +4,10 @@
 ###
 ### This is a CVS Import Coordinator Script
 ###
-### Usage: (see usage function) 
+### Usage: (see usage function)
 ###
 ### ./cvs2git-migrator.sh [options] module
-###   options:     
+###   options:
 ###     -c=/--cvsroot= cvsroot e.g. :pserver:user@cvs:/home/cvs/ (note: cannot use cvsroot with password embedded like :pserver:user:pwd@host)
 ###     -m=/--module= module (can be specified here instead of at end)
 ###     -o=/--options= options file for cvs2git (default: ~/.cvs2git.options)
@@ -26,9 +26,9 @@
 ### Dependencies:
 ###   cvsclone
 ###   cvs2git (cvs2svn)
-###   git 
+###   git
 ###
-### This Script has some caching capability 
+### This Script has some caching capability
 
 
 ######################################
@@ -61,8 +61,8 @@ function usage
 
     cat <<-EOF
 Usage: $PROGNAME [OPTIONS] module
-  OPTIONS:     
-    -c=/--cvsroot= : cvsroot e.g. :pserver:user@cvs:/home/cvs/ 
+  OPTIONS:
+    -c=/--cvsroot= : cvsroot e.g. :pserver:user@cvs:/home/cvs/
              (note: cannot use cvsroot with password embedded like :pserver:user:pwd@host)
              Overrides CVSROOT
 
@@ -84,7 +84,7 @@ Usage: $PROGNAME [OPTIONS] module
   CVS2GIT_VERBOSE    - -v/--verbose
   CVS_PASSWORD       - --cvspassword
   CVSROOT            - -c/--cvsroot
-  
+
 
 EOF
     exit 0
@@ -108,7 +108,7 @@ else
 fi
 
 OPTIONS=${CVS2GIT_OPTIONS-$OPTIONS}
-	  
+
 MODULE=${CVS2GIT_MODULE-}
 
 VERBOSE=${CVS2GIT_VERBOSE-}
@@ -140,22 +140,22 @@ do
 	    ;;
 	-m=*|--module=*)
 	    MODULE=${i#*=}
-	    echo "option: --module $MODULE" 
+	    echo "option: --module $MODULE"
 	    shift
 	    ;;
 	-o=*|--options=*)
 	    OPTIONS=${i#*=}
-	    echo "option: --options $OPTIONS" 
+	    echo "option: --options $OPTIONS"
 	    shift
 	    ;;
 	--cvspassword=*)
 	    CVS_PASSWORD="${i#*=}"
-	    echo "option: --cvspassword is set" 
+	    echo "option: --cvspassword is set"
 	    shift
 	    ;;
 	--cache=*)
 	    CACHE=${i#*=}
-	    echo "option: --cache $CACHE" 
+	    echo "option: --cache $CACHE"
 	    shift
 	    ;;
 	-n|--no-cache)
@@ -165,7 +165,7 @@ do
 	    ;;
 	--output=*)
 	    OUTPUT=${i#*=}
-	    echo "option: --output $OUTPUT" 
+	    echo "option: --output $OUTPUT"
 	    shift
 	    ;;
 	-v|--verbose)
@@ -176,7 +176,7 @@ do
 	    usage
 	    shift
 	    ;;
-	
+
 	-*|--*)
 	    error_exit "unknown option $1"
 	    ;;
@@ -230,7 +230,7 @@ elif [[ ! -d $PROJECT_DIR ]]; then
     echo "$PROJECT_DIR exists but is not a directory" >&4
     error_exit "$LINENO: $PROJECT_DIR is not a directory"
 fi
-    
+
 
 
 if  [[ -z $CACHE ]]; then
@@ -255,7 +255,7 @@ fi
 ############################################
 
 
-	
+
 
 echo "Cloning CVS Repository $CVSROOT/$MODULE"
 
@@ -264,11 +264,11 @@ if [[ -e $CVSROOT && -d $CVSROOT/$MODULE && ! -d $CACHE/$MODULE ]]; then
     (
 	cd $CACHE && \
 	mkdir -p $MODULE/CVSROOT && \
-	cp -rf $CVSROOT/$MODULE/* $MODULE/ 
+	cp -rf $CVSROOT/$MODULE/* $MODULE/
     )
-    
+
 elif [[ ! -d $CACHE/$MODULE ]]; then
-    ## We try a few strategies to lo\gin to cvs and clone
+    ## We try a few strategies to login to cvs and clone
     ## If .cvspass exists and has something then we reuse those credentials
     ## If the password is provided as argument or env we construct a login from that
     ## Otherwise we drop to STDIN to login
@@ -283,7 +283,7 @@ elif [[ ! -d $CACHE/$MODULE ]]; then
 	cvs login
     fi
 
-    (  
+    (
 	cd $CACHE \
 	    && cvsclone -d $CVSROOT $MODULE\
 	    && mkdir -p $MODULE/CVSROOT\
@@ -325,7 +325,7 @@ if [[ -f $OPTIONS ]]; then
     )
 else
    error_exit "$LINENO: cvs2git cannot run \$OPTIONS=$OPTIONS not defined or is not a file (use --options to specify), options required for meaningful import"
-fi    
+fi
 
 
 
@@ -352,4 +352,3 @@ else
 fi
 
 exit 0
-
